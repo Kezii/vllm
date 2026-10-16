@@ -175,7 +175,21 @@ def _query_gcn_arch_from_amdsmi() -> str:
     """Query GCN arch from amdsmi. Raises if not available."""
     handles = amdsmi_get_processor_handles()
     if handles:
-        asic_info = amdsmi_get_gpu_asic_info(handles[0])
+        # amdsmi enumerates physical devices, ignoring HIP/CUDA_VISIBLE_DEVICES:
+        # map visible device 0 back to its physical id (multi-GPU setups often
+        # hide the display GPU, e.g. HIP_VISIBLE_DEVICES=1).
+        phys_id = 0
+        visible = os.environ.get("HIP_VISIBLE_DEVICES") or os.environ.get(
+            "CUDA_VISIBLE_DEVICES"
+        )
+        if visible:
+            try:
+                phys_id = int(visible.split(",")[0])
+            except ValueError:
+                pass  # UUID-style entries: fall back to physical device 0
+        if phys_id >= len(handles):
+            phys_id = 0
+        asic_info = amdsmi_get_gpu_asic_info(handles[phys_id])
         # Use target_graphics_version which contains the gfx name
         # e.g., 'gfx942' for MI300X/MI325X
         target_gfx = asic_info.get("target_graphics_version", "")
