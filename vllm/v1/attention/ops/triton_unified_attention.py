@@ -937,6 +937,10 @@ def unified_attention(
     BLOCK_M = (
         16 if num_queries_per_kv <= 16 else triton.next_power_of_2(num_queries_per_kv)
     )
+    if head_size == 256 and BLOCK_M > 8:
+        # RDNA (64 KB LDS): head-256 tiles with BLOCK_M=16 exceed shared
+        # memory (72 KB required). Halve the query rows per block.
+        BLOCK_M = 8
     BLOCK_Q = BLOCK_M // num_queries_per_kv
 
     # Tuned launch parameters; ``None`` lets Triton pick its defaults.
